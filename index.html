@@ -1,0 +1,770 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>GreenCode — Carbon Footprint for Your Code</title>
+  <meta name="description" content="Measure the CO₂ emissions of your code. One GitHub Action. One badge. Every push tracked automatically."/>
+  <link rel="preconnect" href="https://fonts.googleapis.com"/>
+  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;700&family=Syne:wght@400;500;700;800&display=swap" rel="stylesheet"/>
+  <style>
+    /* ── Reset & Base ───────────────────────────────────────── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg:       #050a06;
+      --bg2:      #0a1209;
+      --bg3:      #111d12;
+      --border:   #1e3320;
+      --g50:      #f0fdf4;
+      --g300:     #86efac;
+      --g400:     #4ade80;
+      --g500:     #22c55e;
+      --g600:     #16a34a;
+      --g900:     #14532d;
+      --lime:     #a3e635;
+      --gold:     #fcd34d;
+      --red:      #f87171;
+      --yellow:   #fbbf24;
+      --blue:     #60a5fa;
+      --gray3:    #6b7280;
+      --gray4:    #9ca3af;
+      --white:    #f8faf8;
+      --font-mono: 'JetBrains Mono', 'Courier New', monospace;
+      --font-sans: 'Syne', system-ui, sans-serif;
+    }
+
+    html { scroll-behavior: smooth; }
+
+    body {
+      background: var(--bg);
+      color: var(--white);
+      font-family: var(--font-sans);
+      overflow-x: hidden;
+      cursor: default;
+    }
+
+    /* ── Noise texture overlay ──────────────────────────────── */
+    body::before {
+      content: '';
+      position: fixed; inset: 0;
+      background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.03'/%3E%3C/svg%3E");
+      pointer-events: none; z-index: 0; opacity: .6;
+    }
+
+    /* ── Grid background ────────────────────────────────────── */
+    body::after {
+      content: '';
+      position: fixed; inset: 0;
+      background-image:
+        linear-gradient(var(--border) 1px, transparent 1px),
+        linear-gradient(90deg, var(--border) 1px, transparent 1px);
+      background-size: 40px 40px;
+      opacity: .3;
+      pointer-events: none; z-index: 0;
+    }
+
+    /* ── Glow effect ────────────────────────────────────────── */
+    .glow {
+      position: fixed;
+      width: 600px; height: 600px;
+      border-radius: 50%;
+      background: radial-gradient(circle, rgba(34,197,94,.08) 0%, transparent 70%);
+      pointer-events: none; z-index: 0;
+      top: -100px; left: 50%;
+      transform: translateX(-50%);
+    }
+
+    section, nav, footer { position: relative; z-index: 1; }
+
+    /* ── Navigation ─────────────────────────────────────────── */
+    nav {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 20px 48px;
+      border-bottom: 1px solid var(--border);
+      backdrop-filter: blur(12px);
+      position: sticky; top: 0; z-index: 100;
+      background: rgba(5,10,6,.8);
+    }
+
+    .nav-logo {
+      font-family: var(--font-mono);
+      font-size: 16px; font-weight: 700;
+      color: var(--g400);
+      display: flex; align-items: center; gap: 8px;
+      text-decoration: none;
+    }
+
+    .nav-logo span { color: var(--white); }
+
+    .nav-links { display: flex; gap: 32px; align-items: center; }
+
+    .nav-links a {
+      font-family: var(--font-mono); font-size: 12px; font-weight: 400;
+      color: var(--gray3); text-decoration: none;
+      letter-spacing: .5px;
+      transition: color .2s;
+    }
+    .nav-links a:hover { color: var(--g400); }
+
+    .nav-cta {
+      background: var(--g600); color: var(--white) !important;
+      padding: 8px 18px; border-radius: 6px;
+      font-weight: 500 !important;
+      transition: background .2s !important;
+    }
+    .nav-cta:hover { background: var(--g500) !important; }
+
+    /* ── Hero ───────────────────────────────────────────────── */
+    .hero {
+      max-width: 900px; margin: 0 auto;
+      padding: 100px 48px 80px;
+      text-align: center;
+    }
+
+    .hero-badge {
+      display: inline-flex; align-items: center; gap: 8px;
+      background: rgba(34,197,94,.08);
+      border: 1px solid rgba(34,197,94,.2);
+      border-radius: 100px;
+      padding: 6px 16px;
+      font-family: var(--font-mono); font-size: 11px;
+      color: var(--g400); letter-spacing: 1px;
+      margin-bottom: 32px;
+    }
+
+    .hero-badge::before {
+      content: '';
+      width: 6px; height: 6px;
+      background: var(--g400); border-radius: 50%;
+      animation: pulse 2s ease-in-out infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50%       { opacity: .4; transform: scale(.8); }
+    }
+
+    h1 {
+      font-family: var(--font-sans);
+      font-size: clamp(48px, 7vw, 84px);
+      font-weight: 800;
+      line-height: .95;
+      letter-spacing: -2px;
+      margin-bottom: 24px;
+    }
+
+    h1 .accent { color: var(--g400); }
+
+    .hero-sub {
+      font-size: 18px; font-weight: 400;
+      color: var(--gray4); line-height: 1.6;
+      max-width: 520px; margin: 0 auto 40px;
+    }
+
+    .hero-actions {
+      display: flex; gap: 12px;
+      justify-content: center; flex-wrap: wrap;
+      margin-bottom: 64px;
+    }
+
+    .btn-primary {
+      background: var(--g500);
+      color: #000; font-family: var(--font-mono);
+      font-size: 13px; font-weight: 700;
+      padding: 14px 28px; border-radius: 8px;
+      text-decoration: none; letter-spacing: .5px;
+      transition: background .2s, transform .15s;
+      border: none; cursor: pointer;
+    }
+    .btn-primary:hover { background: var(--g400); transform: translateY(-1px); }
+
+    .btn-ghost {
+      background: transparent;
+      color: var(--white); font-family: var(--font-mono);
+      font-size: 13px;
+      padding: 13px 28px; border-radius: 8px;
+      text-decoration: none; letter-spacing: .5px;
+      border: 1px solid var(--border);
+      transition: border-color .2s, transform .15s;
+      cursor: pointer;
+    }
+    .btn-ghost:hover { border-color: var(--g600); transform: translateY(-1px); }
+
+    /* ── Terminal demo ──────────────────────────────────────── */
+    .terminal-wrap {
+      max-width: 640px; margin: 0 auto;
+      border-radius: 12px; overflow: hidden;
+      border: 1px solid var(--border);
+      box-shadow: 0 0 80px rgba(34,197,94,.08), 0 32px 64px rgba(0,0,0,.6);
+    }
+
+    .terminal-bar {
+      background: #1a1a1a;
+      padding: 10px 16px;
+      display: flex; align-items: center; gap: 8px;
+    }
+
+    .terminal-dot { width: 12px; height: 12px; border-radius: 50%; }
+
+    .terminal-title {
+      font-family: var(--font-mono); font-size: 11px;
+      color: #555; margin-left: auto; margin-right: auto;
+    }
+
+    .terminal-body {
+      background: #0d1117;
+      padding: 24px 28px;
+      font-family: var(--font-mono); font-size: 13px;
+      line-height: 1.8;
+    }
+
+    .t-cmd   { color: var(--g400); }
+    .t-dim   { color: #444; }
+    .t-white { color: var(--white); }
+    .t-green { color: var(--g400); }
+    .t-lime  { color: var(--lime); }
+    .t-gold  { color: var(--gold); }
+    .t-red   { color: var(--red); }
+    .t-gray  { color: var(--gray3); }
+
+    .t-box {
+      border: 1px solid var(--border);
+      border-radius: 8px; margin: 8px 0;
+      padding: 14px 18px;
+    }
+
+    .t-cursor {
+      display: inline-block; width: 8px; height: 14px;
+      background: var(--g400);
+      animation: blink 1.2s step-end infinite;
+      vertical-align: middle; margin-left: 2px;
+    }
+
+    @keyframes blink { 50% { opacity: 0; } }
+
+    /* ── Badge live demo ────────────────────────────────────── */
+    .badge-demo {
+      max-width: 1000px; margin: 0 auto;
+      padding: 80px 48px;
+    }
+
+    .section-label {
+      font-family: var(--font-mono); font-size: 10px;
+      color: var(--g600); letter-spacing: 3px;
+      margin-bottom: 12px;
+    }
+
+    .section-title {
+      font-size: 40px; font-weight: 800;
+      line-height: 1.1; letter-spacing: -1px;
+      margin-bottom: 16px;
+    }
+
+    .badges-grid {
+      display: grid; grid-template-columns: repeat(3, 1fr);
+      gap: 16px; margin-top: 40px;
+    }
+
+    .badge-card {
+      background: var(--bg2);
+      border: 1px solid var(--border);
+      border-radius: 12px; padding: 24px;
+      transition: border-color .2s, transform .2s;
+    }
+    .badge-card:hover { transform: translateY(-2px); }
+    .badge-card.green  { border-color: #22c55e33; }
+    .badge-card.yellow { border-color: #eab30833; }
+    .badge-card.red    { border-color: #ef444433; }
+
+    .badge-visual {
+      display: inline-flex; border-radius: 4px;
+      overflow: hidden; margin-bottom: 16px;
+      font-family: var(--font-mono); font-size: 12px;
+      height: 22px;
+    }
+
+    .badge-left {
+      background: #1a1a2e;
+      padding: 0 10px; display: flex; align-items: center;
+      color: var(--white);
+    }
+
+    .badge-right {
+      padding: 0 10px; display: flex; align-items: center;
+      color: #000; font-weight: 700;
+    }
+
+    .badge-card h3 {
+      font-size: 15px; font-weight: 700; margin-bottom: 6px;
+    }
+
+    .badge-card p {
+      font-family: var(--font-mono); font-size: 11px;
+      color: var(--gray3); line-height: 1.6;
+    }
+
+    /* ── How it works ───────────────────────────────────────── */
+    .how {
+      max-width: 1000px; margin: 0 auto;
+      padding: 80px 48px;
+      border-top: 1px solid var(--border);
+    }
+
+    .steps { display: grid; grid-template-columns: repeat(4, 1fr); gap: 24px; margin-top: 48px; }
+
+    .step {
+      position: relative;
+    }
+
+    .step-n {
+      font-family: var(--font-mono); font-size: 10px;
+      color: var(--g600); letter-spacing: 2px;
+      margin-bottom: 12px;
+    }
+
+    .step-icon {
+      font-size: 28px; margin-bottom: 12px;
+      display: block;
+    }
+
+    .step h3 { font-size: 15px; font-weight: 700; margin-bottom: 8px; }
+
+    .step p {
+      font-family: var(--font-mono); font-size: 11px;
+      color: var(--gray3); line-height: 1.7;
+    }
+
+    .step::after {
+      content: '→';
+      position: absolute; right: -16px; top: 40px;
+      color: var(--border); font-size: 18px;
+    }
+    .step:last-child::after { display: none; }
+
+    /* ── Code snippet ───────────────────────────────────────── */
+    .code-section {
+      max-width: 1000px; margin: 0 auto;
+      padding: 80px 48px;
+      border-top: 1px solid var(--border);
+    }
+
+    .code-tabs { display: flex; gap: 0; margin-bottom: 0; }
+
+    .code-tab {
+      font-family: var(--font-mono); font-size: 12px;
+      padding: 10px 20px;
+      border: 1px solid var(--border);
+      background: var(--bg2);
+      color: var(--gray3);
+      cursor: pointer;
+      transition: all .15s;
+      border-bottom: none;
+    }
+
+    .code-tab.active { background: #0d1117; color: var(--g400); border-color: var(--g600); }
+    .code-tab:first-child { border-radius: 8px 0 0 0; }
+    .code-tab:last-child  { border-radius: 0 8px 0 0; }
+
+    .code-block {
+      background: #0d1117;
+      border: 1px solid var(--border);
+      border-top-color: var(--g600);
+      border-radius: 0 8px 8px 8px;
+      padding: 28px 32px;
+      font-family: var(--font-mono); font-size: 13px;
+      line-height: 1.9; overflow-x: auto;
+    }
+
+    .code-pane { display: none; }
+    .code-pane.active { display: block; }
+
+    .c-kw  { color: #ff79c6; }   /* keyword */
+    .c-str { color: #f1fa8c; }   /* string */
+    .c-fn  { color: #50fa7b; }   /* function */
+    .c-cm  { color: #6272a4; }   /* comment */
+    .c-var { color: #8be9fd; }   /* variable */
+    .c-num { color: #bd93f9; }   /* number */
+
+    /* ── Metrics ────────────────────────────────────────────── */
+    .metrics {
+      max-width: 1000px; margin: 0 auto;
+      padding: 80px 48px;
+      border-top: 1px solid var(--border);
+    }
+
+    .metrics-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-top: 48px; }
+
+    .metric-card {
+      background: var(--bg2); border: 1px solid var(--border);
+      border-radius: 12px; padding: 28px 24px;
+      text-align: center;
+    }
+
+    .metric-val {
+      font-family: var(--font-sans); font-size: 42px; font-weight: 800;
+      color: var(--g400); line-height: 1;
+      margin-bottom: 8px;
+    }
+
+    .metric-label {
+      font-family: var(--font-mono); font-size: 10px;
+      color: var(--gray3); letter-spacing: 1px;
+    }
+
+    /* ── CTA ────────────────────────────────────────────────── */
+    .cta-section {
+      max-width: 700px; margin: 0 auto;
+      padding: 100px 48px;
+      text-align: center;
+    }
+
+    .cta-section h2 {
+      font-size: 48px; font-weight: 800;
+      line-height: 1.1; letter-spacing: -1.5px;
+      margin-bottom: 20px;
+    }
+
+    .cta-section p {
+      font-family: var(--font-mono); font-size: 13px;
+      color: var(--gray4); margin-bottom: 36px; line-height: 1.7;
+    }
+
+    .install-box {
+      background: #0d1117;
+      border: 1px solid var(--g600);
+      border-radius: 10px;
+      padding: 16px 24px;
+      display: inline-flex; align-items: center; gap: 16px;
+      margin-bottom: 32px; cursor: pointer;
+      transition: border-color .2s;
+    }
+    .install-box:hover { border-color: var(--g400); }
+
+    .install-box code {
+      font-family: var(--font-mono); font-size: 16px; color: var(--g400);
+    }
+
+    .install-copy {
+      font-family: var(--font-mono); font-size: 10px;
+      color: var(--gray3); letter-spacing: 1px;
+      background: var(--bg3); padding: 4px 10px; border-radius: 4px;
+    }
+
+    /* ── Footer ─────────────────────────────────────────────── */
+    footer {
+      border-top: 1px solid var(--border);
+      padding: 32px 48px;
+      display: flex; align-items: center; justify-content: space-between;
+    }
+
+    .footer-logo {
+      font-family: var(--font-mono); font-size: 13px;
+      color: var(--g600); font-weight: 700;
+    }
+
+    .footer-links { display: flex; gap: 24px; }
+
+    .footer-links a {
+      font-family: var(--font-mono); font-size: 11px;
+      color: var(--gray3); text-decoration: none;
+      transition: color .15s;
+    }
+    .footer-links a:hover { color: var(--g400); }
+
+    /* ── Responsive ─────────────────────────────────────────── */
+    @media (max-width: 768px) {
+      nav { padding: 16px 24px; }
+      .nav-links { display: none; }
+      .hero { padding: 60px 24px 50px; }
+      .badge-demo, .how, .code-section, .metrics, .cta-section { padding: 60px 24px; }
+      .badges-grid, .steps, .metrics-grid { grid-template-columns: 1fr; }
+      .step::after { display: none; }
+      footer { flex-direction: column; gap: 16px; }
+    }
+  </style>
+</head>
+<body>
+
+<div class="glow"></div>
+
+<!-- ── NAV ────────────────────────────────────────────── -->
+<nav>
+  <a class="nav-logo" href="#">🌿 <span>green</span>code</a>
+  <div class="nav-links">
+    <a href="#how">How it works</a>
+    <a href="#install">Install</a>
+    <a href="https://github.com/AlexAp0st0l/GreenCode">GitHub</a>
+    <a href="#" class="nav-cta">Get Started</a>
+  </div>
+</nav>
+
+<!-- ── HERO ───────────────────────────────────────────── -->
+<section class="hero">
+  <div class="hero-badge">◈ OPEN SOURCE · MIT LICENSE</div>
+
+  <h1>
+    Your code has a<br/>
+    <span class="accent">carbon footprint.</span><br/>
+    Now you can see it.
+  </h1>
+
+  <p class="hero-sub">
+    One GitHub Action. One badge. Every push — your CO₂ tracked automatically.
+    Make sustainability visible.
+  </p>
+
+  <div class="hero-actions">
+    <a href="#install" class="btn-primary">pip install greencode</a>
+    <a href="https://github.com/AlexAp0st0l/GreenCode" class="btn-ghost">View on GitHub ↗</a>
+  </div>
+
+  <!-- Terminal -->
+  <div class="terminal-wrap">
+    <div class="terminal-bar">
+      <div class="terminal-dot" style="background:#ff5f57"></div>
+      <div class="terminal-dot" style="background:#ffbd2e"></div>
+      <div class="terminal-dot" style="background:#28c840"></div>
+      <span class="terminal-title">greencode — zsh</span>
+    </div>
+    <div class="terminal-body">
+      <div><span class="t-dim">~/myproject</span> <span class="t-cmd">$</span> <span class="t-white">greencode measure</span></div>
+      <div class="t-dim" style="margin: 4px 0">⚡ Running measurement...</div>
+      <div class="t-box">
+        <div><span class="t-gray">GreenCode Measurement</span></div>
+        <div style="margin-top:8px">
+          <span class="t-gray">Project: </span><span class="t-white">mylib</span>
+        </div>
+        <div><span class="t-gray">Commit:  </span><span class="t-white">a3f9c2d  (main)</span></div>
+        <div>
+          <span class="t-gray">CO₂:     </span>
+          <span class="t-green">🌿 4.2100 g</span>
+          <span class="t-dim">  (0.00000421 kg)</span>
+        </div>
+        <div><span class="t-gray">Grade:   </span><span class="t-green">GREEN — low carbon</span></div>
+        <div style="margin-top:6px"><span class="t-gray">vs prev: </span><span class="t-green">▼ 0.8g (-16.0%)</span></div>
+      </div>
+      <div style="margin-top:8px">
+        <span class="t-dim">Badge saved → </span><span class="t-lime">.greencode/badge.svg</span>
+      </div>
+      <div>
+        <span class="t-dim">Add to README: </span>
+        <span class="t-gold">[![Carbon](https://alexap0st0l.github.io/GreenCode/badge/you/mylib.svg)]</span>
+      </div>
+      <div style="margin-top:8px">
+        <span class="t-cmd">$</span> <span class="t-cursor"></span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ── BADGE DEMO ──────────────────────────────────────── -->
+<section class="badge-demo">
+  <div class="section-label">◈ LIVE BADGES</div>
+  <h2 class="section-title">Three levels.<br/>One glance.</h2>
+  <p style="font-family:var(--font-mono);font-size:13px;color:var(--gray4);line-height:1.7;max-width:520px">
+    The badge updates on every push to main. Your README always shows the latest measurement.
+    No manual updates. No stale data.
+  </p>
+
+  <div class="badges-grid">
+    <div class="badge-card green">
+      <div class="badge-visual">
+        <div class="badge-left">carbon</div>
+        <div class="badge-right" style="background:#22c55e">🌿 4.2g CO₂</div>
+      </div>
+      <h3 style="color:#22c55e">🌿 Green</h3>
+      <p>Under 10g CO₂ per test run. Well optimized. This is what you're aiming for.</p>
+    </div>
+    <div class="badge-card yellow">
+      <div class="badge-visual">
+        <div class="badge-left">carbon</div>
+        <div class="badge-right" style="background:#eab308">🌡 28.5g CO₂</div>
+      </div>
+      <h3 style="color:#eab308">🌡 Yellow</h3>
+      <p>10–50g CO₂. Moderate footprint. Room to improve — check heavy dependencies.</p>
+    </div>
+    <div class="badge-card red">
+      <div class="badge-visual">
+        <div class="badge-left">carbon</div>
+        <div class="badge-right" style="background:#ef4444">🔥 87.3g CO₂</div>
+      </div>
+      <h3 style="color:#ef4444">🔥 Red</h3>
+      <p>Over 50g CO₂. Needs attention. Usually a sign of inefficient tests or heavy compute.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ── HOW IT WORKS ────────────────────────────────────── -->
+<section class="how" id="how">
+  <div class="section-label">◈ HOW IT WORKS</div>
+  <h2 class="section-title">Simple. Automatic.<br/>Viral by design.</h2>
+
+  <div class="steps">
+    <div class="step">
+      <div class="step-n">STEP 01</div>
+      <span class="step-icon">⚡</span>
+      <h3>Install</h3>
+      <p>pip install greencode<br/>One line. No config needed to start.</p>
+    </div>
+    <div class="step">
+      <div class="step-n">STEP 02</div>
+      <span class="step-icon">📊</span>
+      <h3>Measure</h3>
+      <p>greencode measure<br/>Runs your tests and tracks CO₂ in real time.</p>
+    </div>
+    <div class="step">
+      <div class="step-n">STEP 03</div>
+      <span class="step-icon">🏷️</span>
+      <h3>Badge</h3>
+      <p>Add one line to README. Badge updates with every push automatically.</p>
+    </div>
+    <div class="step">
+      <div class="step-n">STEP 04</div>
+      <span class="step-icon">📈</span>
+      <h3>Track</h3>
+      <p>Watch your CO₂ over time. Catch regressions before they merge to main.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ── CODE SNIPPETS ───────────────────────────────────── -->
+<section class="code-section" id="install">
+  <div class="section-label">◈ GET STARTED</div>
+  <h2 class="section-title">Up and running<br/>in 5 minutes.</h2>
+
+  <div style="margin-top:40px">
+    <div class="code-tabs">
+      <button class="code-tab active" onclick="switchTab('cli',this)">CLI</button>
+      <button class="code-tab" onclick="switchTab('action',this)">GitHub Action</button>
+      <button class="code-tab" onclick="switchTab('python',this)">Python API</button>
+    </div>
+    <div class="code-block">
+
+      <div class="code-pane active" id="tab-cli">
+        <div><span class="c-cm"># Install</span></div>
+        <div><span style="color:var(--g400)">pip install</span> greencode</div>
+        <br/>
+        <div><span class="c-cm"># Measure your project</span></div>
+        <div><span style="color:var(--g400)">greencode</span> measure</div>
+        <br/>
+        <div><span class="c-cm"># Custom command</span></div>
+        <div><span style="color:var(--g400)">greencode</span> measure --command <span class="c-str">"pytest tests/ -x"</span></div>
+        <br/>
+        <div><span class="c-cm"># View history</span></div>
+        <div><span style="color:var(--g400)">greencode</span> history --limit 20</div>
+        <br/>
+        <div><span class="c-cm"># Generate badge manually</span></div>
+        <div><span style="color:var(--g400)">greencode</span> badge --owner myname --repo mylib</div>
+      </div>
+
+      <div class="code-pane" id="tab-action">
+        <div><span class="c-cm"># .github/workflows/carbon.yml</span></div>
+        <br/>
+        <div><span class="c-var">name</span>: Carbon Footprint</div>
+        <div><span class="c-var">on</span>: [push, pull_request]</div>
+        <br/>
+        <div><span class="c-var">jobs</span>:</div>
+        <div>  <span class="c-var">measure</span>:</div>
+        <div>    <span class="c-var">runs-on</span>: ubuntu-latest</div>
+        <div>    <span class="c-var">steps</span>:</div>
+        <div>      - <span class="c-var">uses</span>: actions/checkout@v4</div>
+        <div>      - <span class="c-var">uses</span>: AlexAp0st0l/GreenCode@v1</div>
+        <div>        <span class="c-var">with</span>:</div>
+        <div>          <span class="c-var">country</span>: DEU</div>
+        <div>          <span class="c-var">comment-on-pr</span>: <span class="c-kw">true</span></div>
+      </div>
+
+      <div class="code-pane" id="tab-python">
+        <div><span class="c-kw">from</span> greencode <span class="c-kw">import</span> measure, generate</div>
+        <br/>
+        <div><span class="c-cm"># Measure CO₂ while running tests</span></div>
+        <div><span class="c-var">result</span> = <span class="c-fn">measure</span>(path=<span class="c-str">"."</span>, country_iso=<span class="c-str">"DEU"</span>)</div>
+        <br/>
+        <div><span class="c-fn">print</span>(result[<span class="c-str">"grams_co2"</span>])   <span class="c-cm"># 4.2100</span></div>
+        <div><span class="c-fn">print</span>(result[<span class="c-str">"grade"</span>])      <span class="c-cm"># "green"</span></div>
+        <br/>
+        <div><span class="c-cm"># Generate SVG badge</span></div>
+        <div><span class="c-var">svg</span> = <span class="c-fn">generate</span>(result[<span class="c-str">"grams_co2"</span>], result[<span class="c-str">"grade"</span>])</div>
+        <div>Path(<span class="c-str">".greencode/badge.svg"</span>).<span class="c-fn">write_text</span>(svg)</div>
+      </div>
+
+    </div>
+  </div>
+</section>
+
+<!-- ── METRICS ─────────────────────────────────────────── -->
+<section class="metrics">
+  <div class="section-label">◈ WHY IT MATTERS</div>
+  <h2 class="section-title">The numbers<br/>are real.</h2>
+
+  <div class="metrics-grid">
+    <div class="metric-card">
+      <div class="metric-val">2.5B</div>
+      <div class="metric-label">CI JOB RUNS PER DAY<br/>GLOBALLY</div>
+    </div>
+    <div class="metric-card">
+      <div class="metric-val">0%</div>
+      <div class="metric-label">OF DEVS KNOW THEIR<br/>CODE'S CO₂</div>
+    </div>
+    <div class="metric-card">
+      <div class="metric-val">47×</div>
+      <div class="metric-label">CO₂ INCREASE FROM<br/>ADDING A PYTORCH DEP</div>
+    </div>
+    <div class="metric-card">
+      <div class="metric-val">FREE</div>
+      <div class="metric-label">FOR ALL OPEN SOURCE<br/>PROJECTS. FOREVER.</div>
+    </div>
+  </div>
+</section>
+
+<!-- ── CTA ─────────────────────────────────────────────── -->
+<section class="cta-section">
+  <div class="section-label">◈ GET STARTED NOW</div>
+  <h2>Make your code<br/><span style="color:var(--g400)">carbon visible.</span></h2>
+  <p>One command. Instant results.<br/>Your first badge in under 5 minutes.</p>
+
+  <div class="install-box" onclick="copyInstall()">
+    <code>pip install greencode</code>
+    <span class="install-copy" id="copy-label">COPY</span>
+  </div>
+
+  <br/><br/>
+
+  <div style="display:flex;gap:12px;justify-content:center;flex-wrap:wrap">
+    <a href="https://github.com/AlexAp0st0l/GreenCode" class="btn-primary">⭐ Star on GitHub</a>
+    <a href="https://alexap0st0l.github.io/GreenCode/docs" class="btn-ghost">Read the docs</a>
+  </div>
+</section>
+
+<!-- ── FOOTER ──────────────────────────────────────────── -->
+<footer>
+  <div class="footer-logo">🌿 greencode</div>
+  <div class="footer-links">
+    <a href="https://github.com/AlexAp0st0l/GreenCode">GitHub</a>
+    <a href="#">Docs</a>
+    <a href="#">PyPI</a>
+    <a href="#">Methodology</a>
+    <a href="#">MIT License</a>
+  </div>
+</footer>
+
+<script>
+  function switchTab(id, btn) {
+    document.querySelectorAll('.code-pane').forEach(p => p.classList.remove('active'));
+    document.querySelectorAll('.code-tab').forEach(t => t.classList.remove('active'));
+    document.getElementById('tab-' + id).classList.add('active');
+    btn.classList.add('active');
+  }
+
+  function copyInstall() {
+    navigator.clipboard.writeText('pip install greencode').then(() => {
+      const el = document.getElementById('copy-label');
+      el.textContent = 'COPIED!';
+      el.style.color = 'var(--g400)';
+      setTimeout(() => { el.textContent = 'COPY'; el.style.color = ''; }, 2000);
+    });
+  }
+</script>
+</body>
+</html>

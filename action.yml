@@ -1,0 +1,123 @@
+name: "GreenCode — Carbon Footprint"
+description: "Measure CO₂ emissions of your code and post a badge + PR comment"
+author: "greencode-dev"
+
+branding:
+  icon: "zap"
+  color: "green"
+
+inputs:
+  path:
+    description: "Project path to measure"
+    required: false
+    default: "."
+  command:
+    description: "Command to run (default: pytest)"
+    required: false
+    default: ""
+  country:
+    description: "ISO 3166-1 alpha-3 country code for emission factors"
+    required: false
+    default: "DEU"
+  badge-branch:
+    description: "Branch to commit the updated badge to"
+    required: false
+    default: "main"
+  comment-on-pr:
+    description: "Post a comment on pull requests"
+    required: false
+    default: "true"
+  token:
+    description: "GitHub token for committing badge and posting PR comments"
+    required: false
+    default: ${{ github.token }}
+
+outputs:
+  grams_co2:
+    description: "CO₂ in grams"
+    value: ${{ steps.measure.outputs.grams_co2 }}
+  grade:
+    description: "Grade: green | yellow | red"
+    value: ${{ steps.measure.outputs.grade }}
+  badge_path:
+    description: "Path to the generated SVG badge"
+    value: ".greencode/badge.svg"
+
+runs:
+  using: "composite"
+  steps:
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: "3.11"
+
+    - name: Install GreenCode
+      shell: bash
+      run: pip install greencode --quiet
+
+    - name: Run measurement
+      id: measure
+      shell: bash
+      run: |
+        if [ -n "${{ inputs.command }}" ]; then
+          greencode measure --path "${{ inputs.path }}" \
+            --command "${{ inputs.command }}" \
+            --country "${{ inputs.country }}" \
+            --json > .greencode/result.json
+        else
+          greencode measure --path "${{ inputs.path }}" \
+            --country "${{ inputs.country }}" \
+            --json > .greencode/result.json
+        fi
+
+        # Parse outputs
+        GRAMS=$(python -c "import json; d=json.load(open('.greencode/result.json')); print(d['grams_co2'])")
+        GRADE=$(python -c "import json; d=json.load(open('.greencode/result.json')); print(d['grade'])")
+        echo "grams_co2=$GRAMS" >> $GITHUB_OUTPUT
+        echo "grade=$GRADE"     >> $GITHUB_OUTPUT
+
+        # Generate badge
+        greencode badge
+
+    - name: Commit badge
+      if: github.event_name == 'push'
+      shell: bash
+      env:
+        GITHUB_TOKEN: ${{ inputs.token }}
+      run: |
+        git config user.name  "github-actions[bot]"
+        git config user.email "github-actions[bot]@users.noreply.github.com"
+        git add .greencode/badge.svg .greencode/latest.json
+        git diff --staged --quiet || \
+          git commit -m "chore: update carbon badge [skip ci]"
+        git push origin HEAD:${{ inputs.badge-branch }}
+
+    - name: Post PR comment
+      if: github.event_name == 'pull_request' && inputs.comment-on-pr == 'true'
+      uses: actions/github-script@v7
+      with:
+        github-token: ${{ inputs.token }}
+        script: |
+          const fs = require('fs');
+          const result = JSON.parse(fs.readFileSync('.greencode/result.json', 'utf8'));
+          const gradeEmoji = { green: '🌿', yellow: '🌡', red: '🔥' }[result.grade] || '❓';
+          const gradeColor = { green: '22C55E', yellow: 'EAB308', red: 'EF4444' }[result.grade];
+
+          const body = `## ${gradeEmoji} Carbon Footprint Report
+
+          | Metric | Value |
+          |--------|-------|
+          | **CO₂** | \`${result.grams_co2.toFixed(4)}g\` |
+          | **Grade** | **${result.grade.toUpperCase()}** |
+          | **Commit** | \`${result.commit}\` |
+          | **Method** | ${result.note} |
+
+          > Measured with [GreenCode](https://greencode.dev) · [methodology](https://greencode.dev/docs/methodology)
+          `;
+
+          await github.rest.issues.createComment({
+            owner:        context.repo.owner,
+            repo:         context.repo.repo,
+            issue_number: context.issue.number,
+            body,
+          });

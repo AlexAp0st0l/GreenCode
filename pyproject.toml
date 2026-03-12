@@ -1,0 +1,55 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "greencode"
+version = "0.1.0"
+description = "Measure and track your code's carbon footprint. Get a badge for your README."
+readme = "README.md"
+license = { text = "MIT" }
+requires-python = ">=3.10"
+keywords = ["carbon", "co2", "sustainability", "green", "github-actions", "cli"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Environment :: Console",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Topic :: Utilities",
+]
+dependencies = [
+    "codecarbon>=2.3",
+    "click>=8.1",
+    "rich>=13.0",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=7", "pytest-cov", "black", "ruff"]
+
+[project.urls]
+Homepage   = "https://greencode.dev"
+Repository = "https://github.com/greencode-dev/greencode"
+Issues     = "https://github.com/greencode-dev/greencode/issues"
+
+[project.scripts]
+greencode = "greencode.cli.main:cli"
+
+[tool.hatch.build.targets.wheel]
+packages = ["greencode"]
+
+[tool.black]
+line-length = 100
+target-version = ["py310"]
+
+[tool.ruff]
+line-length = 100
+select = ["E", "F", "I"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-v --tb=short"
